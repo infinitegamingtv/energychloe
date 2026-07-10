@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Help Chloe Wake Up!</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+    <div id="game-container">
+        
+        <!-- Push Banner (Hidden by default, slides down when announcement received) -->
+        <div id="push-banner" class="banner hidden">
+            <span id="banner-text"></span>
+        </div>
+        
+        <!-- Screen 1: Role Selection -->
+        <div id="screen-role" class="screen active">
+            <h1>Help Chloe Wake Up!</h1>
+            <p class="subtitle">It's exam morning. Chloe's energy is only at 10%...<br>We need to charge her Healthy Shield to 100%!</p>
+            <div class="role-buttons">
+                <button id="btn-teacher-role" class="btn primary">I am a Teacher</button>
+                <button id="btn-student-role" class="btn secondary">I am a Student</button>
+            </div>
+            <p id="auth-status" class="msg" style="color:var(--text-dark); margin-top:2%;">Đang kết nối hệ thống...</p>
+        </div>
+
+
+
+        <!-- Screen 3: Teacher Active Dashboard (NEW) -->
+        <div id="screen-teacher-dashboard" class="screen">
+            <h2>Bảng Điều Khiển Giáo Viên</h2>
+            <div class="teacher-dashboard-grid">
+                
+                <!-- Cột trái: Thống kê & Chức năng -->
+                <div class="dashboard-panel">
+                    <div class="stat-box">
+                        <h3>Trạng thái Phòng: <span id="td-room-code" style="color:var(--primary-dark)"></span></h3>
+                        <p>Năng lượng hiện tại: <strong id="td-energy" style="color:var(--success)">10%</strong></p>
+                        <p>Sĩ số: <strong id="td-student-count">0</strong> học sinh</p>
+                    </div>
+                    
+                    <div class="control-box">
+                        <input type="text" id="input-announcement" placeholder="Nhập thông báo gửi cho học sinh..." autocomplete="off">
+                        <button id="btn-send-announcement" class="btn secondary">Gửi Thông Báo</button>
+                    </div>
+
+                    <div class="control-box">
+                        <button id="btn-end-game" class="btn danger" style="width:100%; background:var(--danger)">🛑 Kết Thúc Ngay & Trình Chiếu Kết Quả</button>
+                    </div>
+                </div>
+
+                <!-- Cột phải: Danh sách học sinh -->
+                <div class="dashboard-panel">
+                    <h3>Danh sách Học sinh</h3>
+                    <ul id="td-student-list" class="td-list">
+                        <!-- Injected by JS -->
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Screen 4: Student Lobby -->
+        <div id="screen-student-lobby" class="screen">
+            <h2>Join a Room</h2>
+            <div class="panel">
+                <input type="text" id="input-room-code" placeholder="Enter Room Code" maxlength="4" autocomplete="off" style="text-transform: uppercase;">
+                <input type="text" id="input-student-name" placeholder="Enter Your Name" maxlength="15" autocomplete="off">
+                <button id="btn-join-room" class="btn primary">Join Room</button>
+                <p id="student-lobby-msg" class="msg"></p>
+            </div>
+            <div id="waiting-area" class="hidden panel">
+                <p>Joined successfully! Waiting for the teacher to start...</p>
+            </div>
+        </div>
+
+        <!-- Screen 5: Main Game Area (Students Only) -->
+        <div id="screen-game" class="screen">
+            <!-- Chloe's Status Area -->
+            <div class="chloe-status-panel">
+                <div class="chloe-avatar">
+                    <img src="assets/chloe_worried.png" class="chloe-img" id="chloe-face" alt="Chloe">
+                </div>
+                <div class="energy-bar-container">
+                    <div class="energy-labels">
+                        <span>Healthy Shield</span>
+                        <span id="energy-text">10%</span>
+                    </div>
+                    <div class="energy-track">
+                        <div class="energy-fill" id="energy-fill" style="width: 10%;"></div>
+                    </div>
+                </div>
+                <div class="student-actions">
+                    <div id="combo-display" class="combo-hidden">COMBO x0</div>
+                    <button id="btn-freeze-attack" class="btn sabotage hidden">❄️ Đóng Băng Top 1!</button>
+                </div>
+            </div>
+
+            <div class="game-content">
+                <!-- Question Area -->
+                <div class="question-area">
+                    <div class="question-header">
+                        <h3 id="question-text">Waiting for question...</h3>
+                    </div>
+                    <div id="options-container" class="options-grid">
+                        <!-- Options injected by JS -->
+                    </div>
+                    <div class="feedback-container">
+                        <div id="feedback-msg" class="feedback"></div>
+                    </div>
+                </div>
+
+                <!-- Leaderboard Area -->
+                <div class="leaderboard-area">
+                    <h3>🏆 Leaderboard</h3>
+                    <ul id="leaderboard-list">
+                        <!-- Leaderboard items injected by JS -->
+                    </ul>
+                </div>
+            </div>
+            
+        </div>
+        
+        <!-- Success Overlay (Global) -->
+        <div id="success-overlay" class="overlay hidden">
+            <div class="overlay-content final-screen">
+                <h1 id="success-title">100% NĂNG LƯỢNG!</h1>
+                <p id="success-subtitle">Tuyệt vời! Chloe đã hoàn toàn tỉnh táo để vào phòng thi!</p>
+                <img src="assets/chloe_success.png" class="chloe-img big-avatar" id="success-face" alt="Chloe">
+                
+                <div class="final-leaderboard">
+                    <h2>🏆 BẢNG VÀNG DANH DỰ 🏆</h2>
+                    <div id="final-top-players" class="top-players-container">
+                        <!-- Injected by JS -->
+                    </div>
+                </div>
+                <button class="btn primary" onclick="location.reload()" style="margin-top: 4%;">Chơi Lại</button>
+            </div>
+        </div>
+
+        <!-- Freeze Ice Overlay (Global) -->
+        <div id="freeze-overlay" class="overlay hidden ice-glass">
+            <div class="ice-content">
+                <h1>🥶 BỊ ĐÓNG BĂNG!</h1>
+                <p>Màn hình của bạn bị tê liệt tạm thời!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (Compat mode to avoid CORS errors when opening locally) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    
+    <script src="script.js"></script>
+</body>
+</html>
