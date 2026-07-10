@@ -43,6 +43,7 @@
                     </div>
                     
                     <div class="control-box">
+                        <button id="btn-start-game" class="btn success" style="width:100%; margin-bottom: 3%;">▶️ Bắt Đầu Game</button>
                         <input type="text" id="input-announcement" placeholder="Nhập thông báo gửi cho học sinh..." autocomplete="off">
                         <button id="btn-send-announcement" class="btn secondary">Gửi Thông Báo</button>
                     </div>
@@ -148,6 +149,9 @@
                 <p>Màn hình của bạn bị tê liệt tạm thời!</p>
             </div>
         </div>
+
+        <!-- Teacher Toast Notifications -->
+        <div id="teacher-toast-container" class="toast-container"></div>
     </div>
 
     <!-- Firebase SDK (Compat mode to avoid CORS errors when opening locally) -->

@@ -89,6 +89,7 @@ let myScore = 0;
 let myCombo = 0;
 let questionStartTime = 0;
 let globalPlayersArray = []; 
+let teacherPlayerStates = {};
 
 const questions = [
     { q: "1. If you ______ breakfast, you will have energy all morning.", opts: ["A. eat", "B. will eat", "C. eating"], a: 0 },
@@ -122,7 +123,6 @@ function showScreen(screenId) {
 // ==========================================
 document.getElementById('btn-teacher-role').addEventListener('click', async () => { 
     if (!authUid) { alert("Chưa kết nối được bảo mật Firebase. Vui lòng đợi hoặc tải lại trang."); return; }
-    
     isTeacher = true;
     
     // Auto Create Room
@@ -133,7 +133,7 @@ document.getElementById('btn-teacher-role').addEventListener('click', async () =
     try {
         await db.ref('rooms/' + currentRoomCode).set({
             hostId: authUid,
-            status: 'playing', // Start immediately so students can play right after joining
+            status: 'waiting', 
             energy: 10,
             announcement: ''
         });
@@ -148,8 +148,15 @@ document.getElementById('btn-teacher-role').addEventListener('click', async () =
 
 document.getElementById('btn-student-role').addEventListener('click', () => { isTeacher = false; showScreen('screen-student-lobby'); });
 
-
 // Teacher Actions in Dashboard
+document.getElementById('btn-start-game').addEventListener('click', async () => {
+    try {
+        await db.ref(`rooms/${currentRoomCode}`).update({ status: 'playing' });
+        document.getElementById('btn-start-game').style.display = 'none';
+        playSound('correct');
+    } catch(e) { alert("Lỗi: " + e.message); }
+});
+
 document.getElementById('btn-send-announcement').addEventListener('click', async () => {
     const text = document.getElementById('input-announcement').value.trim();
     if (text && currentRoomCode) {
@@ -162,11 +169,19 @@ document.getElementById('btn-send-announcement').addEventListener('click', async
 
 document.getElementById('btn-end-game').addEventListener('click', async () => {
     if(confirm('Bạn có chắc chắn muốn kết thúc game và hiển thị Bảng Vàng không?')) {
-        try {
-            await db.ref(`rooms/${currentRoomCode}`).update({ status: 'ended' });
-        } catch(e) { alert("Bạn không có quyền (hostId sai) hoặc bị lỗi: " + e.message); }
+        try { await db.ref(`rooms/${currentRoomCode}`).update({ status: 'ended' }); } 
+        catch(e) { alert("Lỗi: " + e.message); }
     }
 });
+
+function showTeacherToast(message) {
+    const container = document.getElementById('teacher-toast-container');
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerText = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.remove(); }, 4000);
+}
 
 function setupTeacherRealtimeListeners() {
     db.ref(`rooms/${currentRoomCode}/players`).on('value', (snapshot) => {
@@ -177,13 +192,22 @@ function setupTeacherRealtimeListeners() {
         globalPlayersArray = [];
         if (!playersData) { document.getElementById('td-student-count').innerText = "0"; return; }
 
-        for (const [id, data] of Object.entries(playersData)) globalPlayersArray.push({id, ...data});
+        for (const [id, data] of Object.entries(playersData)) {
+            globalPlayersArray.push({id, ...data});
+            
+            // Notification logic
+            if (data.finished && !teacherPlayerStates[id]) {
+                showTeacherToast(`🎉 ${data.name} đã làm bài xong!`);
+                playSound('click');
+            }
+            teacherPlayerStates[id] = data.finished || false;
+        }
         document.getElementById('td-student-count').innerText = globalPlayersArray.length;
         
         globalPlayersArray.sort((a, b) => b.score - a.score);
         globalPlayersArray.forEach(p => {
             const li = document.createElement('li');
-            li.innerHTML = `<span>${p.name} ${p.combo >= 3 ? '🔥' : ''}</span> <span>${p.score}đ</span>`;
+            li.innerHTML = `<span>${p.name} ${p.combo >= 3 ? '🔥' : ''} ${p.finished ? '✅' : ''}</span> <span>${p.score}đ</span>`;
             list.appendChild(li);
         });
     });
@@ -194,9 +218,7 @@ function setupTeacherRealtimeListeners() {
     });
     
     db.ref(`rooms/${currentRoomCode}/status`).on('value', (snapshot) => {
-        if (snapshot.val() === 'ended') {
-            triggerEndGame();
-        }
+        if (snapshot.val() === 'ended') triggerEndGame();
     });
 }
 
@@ -217,21 +239,30 @@ document.getElementById('btn-join-room').addEventListener('click', async () => {
         if (!snapshot.exists()) { msg.innerText = "Không tìm thấy phòng này!"; return; }
 
         currentRoomCode = codeInput;
-        myPlayerId = authUid; // Use authUid as player ID
+        myPlayerId = authUid;
 
         await db.ref(`rooms/${currentRoomCode}/players/${myPlayerId}`).set({
-            name: nameInput, score: 0, combo: 0, frozenUntil: 0
+            name: nameInput, score: 0, combo: 0, frozenUntil: 0, finished: false
         });
 
         document.getElementById('btn-join-room').classList.add('hidden');
         document.getElementById('input-room-code').disabled = true;
         document.getElementById('input-student-name').disabled = true;
         msg.innerText = "";
-        
-        // Since room is always 'playing' now, jump straight in
-        setupRealtimeListeners();
-        showScreen('screen-game');
-        loadQuestion();
+        document.getElementById('waiting-area').classList.remove('hidden');
+
+        db.ref(`rooms/${currentRoomCode}/status`).on('value', (snapshot) => {
+            const stat = snapshot.val();
+            if (stat === 'playing') {
+                if (document.getElementById('screen-student-lobby').classList.contains('active')) {
+                    setupRealtimeListeners();
+                    showScreen('screen-game');
+                    loadQuestion();
+                }
+            } else if (stat === 'ended') {
+                triggerEndGame();
+            }
+        });
         
     } catch (error) {
         console.error("Firebase Error: ", error);
@@ -273,6 +304,10 @@ function updateComboUI() {
 // ==========================================
 function loadQuestion() {
     if (currentQuestionIndex >= questions.length) {
+        if (!window.hasFinishedGame) {
+            window.hasFinishedGame = true;
+            db.ref(`rooms/${currentRoomCode}/players/${myPlayerId}`).update({ finished: true });
+        }
         document.getElementById('question-text').innerText = "🎉 Bạn đã hoàn thành tất cả câu hỏi! Hãy chờ các bạn khác để cùng đẩy thanh năng lượng nhé.";
         document.getElementById('options-container').innerHTML = '';
         document.getElementById('feedback-msg').innerText = '';
@@ -312,7 +347,6 @@ async function handleAnswer(selectedIndex, correctIndex, btnElement) {
         
         await db.ref(`rooms/${currentRoomCode}/players/${myPlayerId}`).update({ score: myScore, combo: myCombo });
         
-        // Dynamic Energy Scaling: Requires ~8 correct answers per player to hit 100%
         let playerCount = Math.max(1, globalPlayersArray.length);
         let energyIncrement = 90 / (playerCount * 8); 
         await db.ref(`rooms/${currentRoomCode}`).update({ energy: firebase.database.ServerValue.increment(energyIncrement) });
@@ -338,7 +372,6 @@ async function handleAnswer(selectedIndex, correctIndex, btnElement) {
 // 8. REAL-TIME LISTENERS (STUDENT)
 // ==========================================
 function setupRealtimeListeners() {
-    // Listen to Push Banner
     db.ref(`rooms/${currentRoomCode}/announcement`).on('value', (snapshot) => {
         const text = snapshot.val();
         if (text) {
@@ -347,13 +380,6 @@ function setupRealtimeListeners() {
             banner.classList.remove('hidden');
             playSound('click');
             setTimeout(() => { banner.classList.add('hidden'); }, 5000);
-        }
-    });
-
-    // Listen to Room Status (End Game)
-    db.ref(`rooms/${currentRoomCode}/status`).on('value', (snapshot) => {
-        if (snapshot.val() === 'ended') {
-            triggerEndGame();
         }
     });
 
